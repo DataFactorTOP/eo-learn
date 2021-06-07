@@ -17,7 +17,7 @@ file in the root directory of this source tree.
 
 import sys
 import logging
-import datetime
+import warnings
 import inspect
 from collections import OrderedDict
 from abc import ABC, abstractmethod
@@ -51,27 +51,11 @@ class EOTask(ABC):
         """Creates a composite task of this and passed task."""
         return CompositeTask(other, self)
 
-    def __call__(self, *eopatches, monitor=False, **kwargs):
-        """Executes the task."""
-        # if monitor:
-        #     return self.execute_and_monitor(*eopatches, **kwargs)
-
-        return self._execute_handling(*eopatches, **kwargs)
-
-    def execute_and_monitor(self, *eopatches, **kwargs):
-        """ In the current version nothing additional happens in this method
+    def __call__(self, *eopatches, **kwargs):
+        """ Executes the task and handles proper error propagation
         """
-        return self._execute_handling(*eopatches, **kwargs)
-
-    def _execute_handling(self, *eopatches, **kwargs):
-        """ Handles measuring execution time and error propagation
-        """
-        self.private_task_config.start_time = datetime.datetime.now()
-
         try:
             return_value = self.execute(*eopatches, **kwargs)
-            self.private_task_config.end_time = datetime.datetime.now()
-            return return_value
         except BaseException as exception:
             traceback = sys.exc_info()[2]
 
@@ -83,6 +67,7 @@ class EOTask(ABC):
                 extended_exception = exception
 
             raise extended_exception.with_traceback(traceback)
+        return return_value
 
     @abstractmethod
     def execute(self, *eopatches, **kwargs):
@@ -133,6 +118,10 @@ class CompositeTask(EOTask):
     :type eotask2: EOTask
     """
     def __init__(self, eotask1, eotask2):
+
+        warnings.warn("The CompositeTask (also used by EOTasks __mul__ method) has issues and will be removed.",
+                    DeprecationWarning, stacklevel=2)
+
         self.eotask1 = eotask1
         self.eotask2 = eotask2
 

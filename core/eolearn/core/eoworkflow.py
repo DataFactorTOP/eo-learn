@@ -153,14 +153,12 @@ class EOWorkflow:
 
         return topological_order
 
-    def execute(self, input_args=None, monitor=False):
+    def execute(self, input_args=None):
         """ Executes the workflow
 
         :param input_args: External input arguments to the workflow. They have to be in a form of a dictionary where
             each key is an EOTask used in the workflow and each value is a dictionary or a tuple of arguments.
         :type input_args: dict(EOTask: dict(str: object) or tuple(object))
-        :param monitor: If True workflow execution will be monitored
-        :type monitor: bool
         :return: An immutable mapping containing results of terminal tasks
         :rtype: WorkflowResults
         """
@@ -168,7 +166,7 @@ class EOWorkflow:
 
         input_args = self.parse_input_args(input_args)
 
-        results = WorkflowResults(self._execute_tasks(input_args=input_args, out_degs=out_degs, monitor=monitor))
+        results = WorkflowResults(self._execute_tasks(input_args=input_args, out_degs=out_degs))
 
         LOGGER.debug('Workflow finished with %s', repr(results))
         return results
@@ -189,7 +187,7 @@ class EOWorkflow:
 
         return input_args
 
-    def _execute_tasks(self, *, input_args, out_degs, monitor):
+    def _execute_tasks(self, *, input_args, out_degs):
         """ Executes tasks comprising the workflow in the predetermined order
 
         :param input_args: External input arguments to the workflow.
@@ -205,8 +203,7 @@ class EOWorkflow:
         for dep in self.ordered_dependencies:
             result = self._execute_task(dependency=dep,
                                         input_args=input_args,
-                                        intermediate_results=intermediate_results,
-                                        monitor=monitor)
+                                        intermediate_results=intermediate_results)
 
             intermediate_results[dep] = result
 
@@ -216,7 +213,7 @@ class EOWorkflow:
 
         return intermediate_results
 
-    def _execute_task(self, *, dependency, input_args, intermediate_results, monitor):
+    def _execute_task(self, *, dependency, input_args, intermediate_results):
         """ Executes a task of the workflow
 
         :param dependency: A workflow dependency
@@ -239,7 +236,7 @@ class EOWorkflow:
             kw_inputs = {}
 
         LOGGER.debug("Computing %s(*%s, **%s)", task.__class__.__name__, str(inputs), str(kw_inputs))
-        return task(*inputs, **kw_inputs, monitor=monitor)
+        return task(*inputs, **kw_inputs)
 
     def _relax_dependencies(self, *, dependency, out_degrees, intermediate_results):
         """ Relaxes dependencies incurred by ``task_id``. After the task with ID ``task_id`` has been successfully

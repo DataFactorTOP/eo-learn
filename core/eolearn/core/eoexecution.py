@@ -196,7 +196,7 @@ class EOExecutor:
         logger, handler = self._try_add_logging(log_path, filter_logs_by_thread)
         stats = {self.STATS_START_TIME: dt.datetime.now()}
         try:
-            results = workflow.execute(input_args, monitor=True)
+            results = workflow.execute(input_args)
 
             if return_results:
                 stats[self.RESULTS] = results

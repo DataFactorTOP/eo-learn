@@ -50,7 +50,7 @@ class TestEOTask(unittest.TestCase):
 
         @staticmethod
         def execute(x):
-            return x ** 2 + x + 1
+            return x + 1
 
     class PlusConstSquaredTask(EOTask):
         def __init__(self, const):

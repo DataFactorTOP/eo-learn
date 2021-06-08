@@ -17,7 +17,7 @@ from eolearn.core import EOTask
 logging.basicConfig(level=logging.DEBUG)
 
 
-class TestException(BaseException):
+class TwoParamException(BaseException):
     def __init__(self, param1, param2):
         # accept two parameters as opposed to BaseException, which just accepts one
         super().__init__()
@@ -32,11 +32,11 @@ class ExceptionTestingTask(EOTask):
     def execute(self, exec_param):
         # try raising a subclassed exception with an unsupported __init__ arguments signature
         if self.task_arg == 'test_exception':
-            raise TestException(1, 2)
+            raise TwoParamException(1, 2)
 
         # try raising a subclassed exception with an unsupported __init__ arguments signature without initializing it
         if self.task_arg == 'test_exception_fail':
-            raise TestException
+            raise TwoParamException
 
         # raise one of the standard errors
         if self.task_arg == 'value_error':
@@ -50,31 +50,27 @@ class TestEOTask(unittest.TestCase):
 
         @staticmethod
         def execute(x):
-            return x + 1
+            return x ** 2 + x + 1
 
-    def test_call_equals_transform(self):
-        t = self.PlusOneTask()
-        self.assertEqual(t(1), t.execute(1), msg="t(x) should given the same result as t.execute(x)")
-
-
-class TestCompositeTask(unittest.TestCase):
-    class MultTask(EOTask):
-
-        def __init__(self, num):
-            self.num = num
+    class PlusConstSquaredTask(EOTask):
+        def __init__(self, const):
+            self.const = const
 
         def execute(self, x):
-            return (x + 1) * self.num
+            return (x + self.const)**2
 
-    def test_chained(self):
-        composite = self.MultTask(1) * self.MultTask(2) * self.MultTask(3)
+    def test_call_equals_execute(self):
+        t = self.PlusOneTask()
+        self.assertEqual(t(1), t.execute(1), msg="t(x) should given the same result as t.execute(x)")
+        t = self.PlusConstSquaredTask(20)
+        self.assertEqual(t(14), t.execute(14), msg="t(x) should given the same result as t.execute(x)")
 
-        for i in range(5):
-            self.assertEqual(composite(i), 6 * i + 9)
+
+class TestExecutionHandling(unittest.TestCase):
 
     def test_execution_handling(self):
         task = ExceptionTestingTask('test_exception')
-        self.assertRaises(TestException, task, 'test')
+        self.assertRaises(TwoParamException, task, 'test')
 
         task = ExceptionTestingTask('success')
         self.assertEqual(task('test'), 'success test')

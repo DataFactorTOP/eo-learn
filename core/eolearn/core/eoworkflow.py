@@ -22,7 +22,6 @@ file in the root directory of this source tree.
 """
 import collections
 import logging
-import warnings
 import uuid
 import copy
 
@@ -53,38 +52,28 @@ class EOWorkflow:
                 (task3, [task1, task2], 'Task that depends on previous 2 tasks')
             ])
     """
-    def __init__(self, dependencies, task_names=None):
+    def __init__(self, dependencies):
         """
         :param dependencies: A list of dependencies between tasks, specifying the computational graph.
         :type dependencies: list(tuple or Dependency)
         """
         self.id_gen = _UniqueIdGenerator()
 
-        if task_names:
-            warnings.warn("Parameter 'task_names' will soon be removed. Everything can be specified with "
-                          "'dependencies' parameter, including task names", DeprecationWarning, stacklevel=2)
-
-        self.dependencies = self._parse_dependencies(dependencies, task_names)
+        self.dependencies = self._parse_dependencies(dependencies)
         self.uuid_dict = self._set_task_uuid(self.dependencies)
         self.dag = self.create_dag(self.dependencies)
         self.ordered_dependencies = self._schedule_dependencies(self.dag)
 
     @staticmethod
-    def _parse_dependencies(dependencies, task_names):
-        """ Parses dependencies and adds names of task_names
+    def _parse_dependencies(dependencies):
+        """ Parses dependencies into correct form
 
-        :param dependencies: Input of dependency parameter
+        :param dependencies: Lis of inputs that define of dependencies
         :type dependencies: list(tuple or Dependency)
-        :param task_names: Human-readable names of tasks
-        :type task_names: dict(EOTask: str) or None
         :return: List of dependencies
         :rtype: list(Dependency)
         """
-        parsed_dependencies = [dep if isinstance(dep, Dependency) else Dependency(*dep) for dep in dependencies]
-        for dep in parsed_dependencies:
-            if task_names and dep.task in task_names:
-                dep.set_name(task_names[dep.task])
-        return parsed_dependencies
+        return [dep if isinstance(dep, Dependency) else Dependency(*dep) for dep in dependencies]
 
     def _set_task_uuid(self, dependencies):
         """ Adds universally unique user ids (UUID) to each task of the workflow
@@ -396,11 +385,6 @@ class Dependency:
 
         if self.name is None:
             self.name = self.task.__class__.__name__
-
-    def set_name(self, name):
-        """ Sets a new name
-        """
-        self.name = name
 
     def get_custom_name(self, number=0):
         """ Provides custom task name according to given number. E.g. FooTask -> FooTask

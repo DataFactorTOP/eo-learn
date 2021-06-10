@@ -88,7 +88,7 @@ class EOExecutor:
         if not isinstance(execution_args, (list, tuple)):
             raise ValueError("Parameter 'execution_args' should be a list")
 
-        return [EOWorkflow.parse_input_args(input_args) for input_args in execution_args]
+        return execution_args
 
     @staticmethod
     def _parse_execution_names(execution_names, execution_args):

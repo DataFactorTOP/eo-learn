@@ -150,19 +150,27 @@ class EOWorkflow:
         """
         out_degs = self.dag.get_outdegrees()
 
-        input_args = self.parse_input_args(input_args)
+        uid_input_args = self.parse_input_args(input_args)
 
-        results = WorkflowResults(self._execute_tasks(input_args=input_args, out_degs=out_degs))
+        results = WorkflowResults(self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs))
 
         LOGGER.debug('Workflow finished with %s', repr(results))
         return results
 
     @staticmethod
     def parse_input_args(input_args):
-        """ Parses EOWorkflow input arguments provided by user and raises an error if something is wrong. This is
-        done automatically in the process of workflow execution
+        """
+        Parses EOWorkflow input arguments provided by user and raises an error if something is wrong. This is
+        done automatically in the process of workflow execution. It also switches keys from tasks to uids to avoid
+        serialization issues.
+
+        :param input_args: A dictionary mapping tasks to task execution arguments
+        :type input_args: dict
+        :return: A dictionary mapping task uids to task execution arguments
+        :rtype: dict
         """
         input_args = input_args if input_args else {}
+        uid_input_args = {}
         for task, args in input_args.items():
             if not isinstance(task, EOTask):
                 raise ValueError(f'Invalid input argument {task}, should be an instance of EOTask')
@@ -171,13 +179,15 @@ class EOWorkflow:
                 raise ValueError('Execution input arguments of each task should be a dictionary or a tuple, for task '
                                  f'{task.__class__.__name__} got arguments of type {type(args)}')
 
-        return input_args
+            uid_input_args[task.private_task_config.uid] = args
 
-    def _execute_tasks(self, *, input_args, out_degs):
+        return uid_input_args
+
+    def _execute_tasks(self, *, uid_input_args, out_degs):
         """ Executes tasks comprising the workflow in the predetermined order
 
-        :param input_args: External input arguments to the workflow.
-        :type input_args: Dict
+        :param uid_input_args: External input arguments to the workflow.
+        :type uid_input_args: Dict
         :param out_degs: Dictionary mapping vertices (task IDs) to their out-degrees. (The out-degree equals the number
         of tasks that depend on this task.)
         :type out_degs: Dict
@@ -188,7 +198,7 @@ class EOWorkflow:
 
         for dep in self._ordered_dependencies:
             result = self._execute_task(dependency=dep,
-                                        input_args=input_args,
+                                        uid_input_args=uid_input_args,
                                         intermediate_results=intermediate_results)
 
             intermediate_results[dep] = result
@@ -199,13 +209,13 @@ class EOWorkflow:
 
         return intermediate_results
 
-    def _execute_task(self, *, dependency, input_args, intermediate_results):
+    def _execute_task(self, *, dependency, uid_input_args, intermediate_results):
         """ Executes a task of the workflow
 
         :param dependency: A workflow dependency
         :type dependency: Dependency
-        :param input_args: External task parameters.
-        :type input_args: dict
+        :param uid_input_args: External task parameters.
+        :type uid_input_args: dict
         :param intermediate_results: The dictionary containing intermediate results, including the results of all
         tasks that the current task depends on.
         :type intermediate_results: dict
@@ -216,7 +226,7 @@ class EOWorkflow:
         inputs = tuple(intermediate_results[self._uid_dict[input_task.private_task_config.uid]]
                        for input_task in dependency.inputs)
 
-        kw_inputs = input_args.get(task, {})
+        kw_inputs = uid_input_args.get(task.private_task_config.uid, {})
         if isinstance(kw_inputs, tuple):
             inputs += kw_inputs
             kw_inputs = {}

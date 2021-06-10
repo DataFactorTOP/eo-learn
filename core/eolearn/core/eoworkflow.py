@@ -27,6 +27,7 @@ import copy
 import attr
 
 from .eotask import EOTask
+from .eoworkflow_tasks import OutputTask
 from .graph import DirectedGraph
 
 
@@ -251,13 +252,14 @@ class EOWorkflow:
         to be executed) of the already-executed tasks
         :type intermediate_results: dict
         """
-        current_task = dependency.task
-        for input_task in dependency.inputs:
+        for input_task in [dependency.task] + dependency.inputs:
             dep = self._uid_dict[input_task.private_task_config.uid]
-            out_degrees[dep] -= 1
 
-            if out_degrees[dep] == 0:
-                LOGGER.debug("Removing intermediate result for %s", current_task.__class__.__name__)
+            if input_task is not dependency.task:
+                out_degrees[dep] -= 1
+
+            if out_degrees[dep] == 0 and not isinstance(input_task, OutputTask):
+                LOGGER.debug('Removing intermediate result of %s', input_task.__class__.__name__)
                 del intermediate_results[dep]
 
     def get_tasks(self):

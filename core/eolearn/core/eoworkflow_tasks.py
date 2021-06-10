@@ -1,4 +1,4 @@
-"""   # TODO: rethink module name, maybe eoworkflow_tasks?
+"""
 Module implementing tasks that have a special effect in EOWorkflow
 """
 from .eotask import EOTask

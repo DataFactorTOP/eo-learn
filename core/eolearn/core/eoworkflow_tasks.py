@@ -4,7 +4,7 @@ Module implementing tasks that have a special effect in EOWorkflow
 from .eotask import EOTask
 
 
-class OutputTask(EOTask):  # TODO: maybe ResultTask?
+class OutputTask(EOTask):
     """ Stores EOPatch as an output of EOWorkflow results
     """
     def __init__(self, name=None, features=...):

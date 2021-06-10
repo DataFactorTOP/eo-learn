@@ -18,8 +18,8 @@ class EOWorkflowVisualization:
     """
     def __init__(self, dependencies, uid_dict):
         """
-        :param dependencies: A list of topologically ordered dependecies
-        :type ordred_dependencies: list(Dependency)
+        :param dependencies: A list of topologically ordered dependencies
+        :type dependencies: list(Dependency)
         :param uid_dict: A dictionary linking task uids with the dependencies that contain said tasks
         :type uid_dict: dict(int: Dependency)
         """

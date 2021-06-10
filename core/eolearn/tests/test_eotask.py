@@ -100,7 +100,6 @@ class TestEOTask(unittest.TestCase):
                          msg="Recursive copies of same task should have equal uids.")
 
 
-
 class TestExecutionHandling(unittest.TestCase):
 
     def test_execution_handling(self):

@@ -59,7 +59,7 @@ class EOWorkflow:
         dependencies = self._parse_dependencies(dependencies)
         self._uid_dict = self._make_uid_dict(dependencies)
         self.dag = self._create_dag(dependencies)
-        self._ordered_dependencies = self._schedule_dependencies(self.dag)
+        self._dependencies = self._schedule_dependencies(self.dag)
 
     @staticmethod
     def _parse_dependencies(dependencies):
@@ -74,7 +74,7 @@ class EOWorkflow:
 
     @staticmethod
     def _make_uid_dict(dependencies):
-        """ Creates a dictionary linking task IDs and the tasks dependency while checking uniqueness of tasks
+        """ Creates a dictionary mapping task IDs to task dependency while checking uniqueness of tasks
 
         :param dependencies: The list of dependencies between tasks defining the computational graph
         :type dependencies: list(Dependency)
@@ -150,7 +150,8 @@ class EOWorkflow:
         """
         out_degs = self.dag.get_outdegrees()
 
-        uid_input_args = self.parse_input_args(input_args)
+        self.validate_input_args(input_args)
+        uid_input_args = self._make_uid_input_args(input_args)
 
         results = WorkflowResults(self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs))
 
@@ -158,19 +159,14 @@ class EOWorkflow:
         return results
 
     @staticmethod
-    def parse_input_args(input_args):
-        """
-        Parses EOWorkflow input arguments provided by user and raises an error if something is wrong. This is
-        done automatically in the process of workflow execution. It also switches keys from tasks to uids to avoid
-        serialization issues.
+    def validate_input_args(input_args):
+        """ Validates EOWorkflow input arguments provided by user and raises an error if something is wrong.
 
         :param input_args: A dictionary mapping tasks to task execution arguments
         :type input_args: dict
-        :return: A dictionary mapping task uids to task execution arguments
-        :rtype: dict
         """
         input_args = input_args if input_args else {}
-        uid_input_args = {}
+
         for task, args in input_args.items():
             if not isinstance(task, EOTask):
                 raise ValueError(f'Invalid input argument {task}, should be an instance of EOTask')
@@ -179,9 +175,17 @@ class EOWorkflow:
                 raise ValueError('Execution input arguments of each task should be a dictionary or a tuple, for task '
                                  f'{task.__class__.__name__} got arguments of type {type(args)}')
 
-            uid_input_args[task.private_task_config.uid] = args
+    @staticmethod
+    def _make_uid_input_args(input_args):
+        """ Parses EOWorkflow input arguments, switching keys from tasks to task uids to avoid serialization issues.
 
-        return uid_input_args
+        :param input_args: A dictionary mapping tasks to task execution arguments
+        :type input_args: dict
+        :return: A dictionary mapping task uids to task execution arguments
+        :rtype: dict
+        """
+        input_args = input_args if input_args else {}
+        return {task.private_task_config.uid: args for task, args in input_args.items()}
 
     def _execute_tasks(self, *, uid_input_args, out_degs):
         """ Executes tasks comprising the workflow in the predetermined order
@@ -196,7 +200,7 @@ class EOWorkflow:
         """
         intermediate_results = {}
 
-        for dep in self._ordered_dependencies:
+        for dep in self._dependencies:
             result = self._execute_task(dependency=dep,
                                         uid_input_args=uid_input_args,
                                         intermediate_results=intermediate_results)
@@ -264,7 +268,7 @@ class EOWorkflow:
         :rtype: OrderedDict
         """
         task_dict = collections.OrderedDict()
-        for dep in self._ordered_dependencies:
+        for dep in self._dependencies:
             task_name = dep.name
 
             if task_name in task_dict:
@@ -308,7 +312,7 @@ class EOWorkflow:
         except ImportError:
             raise RuntimeError('Subpackage eo-learn-visualization has to be installed in order to use EOWorkflow '
                                'visualization methods')
-        return EOWorkflowVisualization(self._ordered_dependencies, self._uid_dict)
+        return EOWorkflowVisualization(self._dependencies, self._uid_dict)
 
 
 class LinearWorkflow(EOWorkflow):
@@ -341,6 +345,7 @@ class LinearWorkflow(EOWorkflow):
             return task
 
         raise ValueError(f'Cannot parse {task}, expected an instance of EOTask or a tuple (EOTask, name)')
+
 
 @attr.s(eq=False)  # eq=False preserves the original hash
 class Dependency:

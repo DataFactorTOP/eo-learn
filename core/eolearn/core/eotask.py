@@ -49,6 +49,14 @@ class EOTask(ABC):
 
     @property
     def private_task_config(self):
+        """ Keeps track of the arguments for which the task was initialized as well as the original object id.
+
+        The object id is kept to help with serialization issues. Tasks created in different sessions have a small
+        chance of having an id clash. For this reason all tasks of a workflow should be created in the same session.
+
+        :return: The initial configuration arguments of the task
+        :rtype: _PrivateTaskConfig
+        """
         return self._private_task_config
 
     def __call__(self, *eopatches, **kwargs):
@@ -114,4 +122,4 @@ class _PrivateTaskConfig:
     :type uuid: str or None
     """
     init_args = attr.ib()
-    uid = attr.ib(default=None)
+    uid = attr.ib()

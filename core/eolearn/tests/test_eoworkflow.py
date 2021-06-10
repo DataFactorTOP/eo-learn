@@ -212,6 +212,7 @@ class TestEOWorkflow(unittest.TestCase):
         class MakeZeroTask(EOTask):
             def execute(self):
                 return 0
+
         class PlusOneTask(EOTask):
             def execute(self, x):
                 return x + 1

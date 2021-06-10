@@ -16,12 +16,15 @@ from graphviz import Digraph
 class EOWorkflowVisualization:
     """ Class handling EOWorkflow visualization
     """
-    def __init__(self, workflow):
+    def __init__(self, ordered_dependencies, uid_dict):
         """
-        :param workflow: An instance of a workflow
-        :type workflow: EOWorkflow
+        :param ordered_dependencies: A list of topologically ordered dependecies
+        :type ordred_dependencies: list(Dependency)
+        :param uid_dict: A dictionary linking task uids with the dependencies that contain said tasks
+        :type uid_dict: dict(int: Dependency)
         """
-        self.workflow = workflow
+        self.ordered_dependencies = ordered_dependencies
+        self.uid_dict = uid_dict
 
     def dependency_graph(self, filename=None):
         """ Visualize the computational graph.
@@ -50,11 +53,11 @@ class EOWorkflowVisualization:
         """
         dot = Digraph(format='png')
 
-        dep_to_dot_name = self._get_dep_to_dot_name_mapping(self.workflow.ordered_dependencies)
+        dep_to_dot_name = self._get_dep_to_dot_name_mapping(self.ordered_dependencies)
 
-        for dep in self.workflow.ordered_dependencies:
+        for dep in self.ordered_dependencies:
             for input_task in dep.inputs:
-                dot.edge(dep_to_dot_name[self.workflow.uuid_dict[input_task.private_task_config.uuid]],
+                dot.edge(dep_to_dot_name[self.uid_dict[input_task.private_task_config.uid]],
                          dep_to_dot_name[dep])
         return dot
 

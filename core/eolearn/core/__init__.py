@@ -6,7 +6,7 @@ from sentinelhub import BBox, CRS
 
 from .constants import FeatureType, FeatureTypeSet, FileFormat, OverwritePermission
 from .eodata import EOPatch
-from .eotask import EOTask, CompositeTask
+from .eotask import EOTask
 from .eoworkflow import EOWorkflow, LinearWorkflow, Dependency, WorkflowResults
 from .eoexecution import EOExecutor, execute_with_mp_lock
 

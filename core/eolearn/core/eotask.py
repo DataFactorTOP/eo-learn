@@ -17,8 +17,8 @@ file in the root directory of this source tree.
 
 import sys
 import logging
-import warnings
 import inspect
+import copy
 from collections import OrderedDict
 from abc import ABC, abstractmethod
 
@@ -43,13 +43,13 @@ class EOTask(ABC):
             if arg in kwargs:
                 init_args[arg] = repr(kwargs[arg])
 
-        self.private_task_config = _PrivateTaskConfig(init_args=init_args)
+        self._private_task_config = _PrivateTaskConfig(init_args=init_args, uid=id(self))
 
         return self
 
-    def __mul__(self, other):
-        """Creates a composite task of this and passed task."""
-        return CompositeTask(other, self)
+    @property
+    def private_task_config(self):
+        return self._private_task_config
 
     def __call__(self, *eopatches, **kwargs):
         """ Executes the task and handles proper error propagation
@@ -61,13 +61,33 @@ class EOTask(ABC):
 
             # Some special exceptions don't accept an error message as a parameter and raise a TypeError in such case.
             try:
-                errmsg = 'During execution of task {}: {}'.format(self.__class__.__name__, exception)
+                errmsg = f'During execution of task {self.__class__.__name__}: {exception}'
                 extended_exception = type(exception)(errmsg)
             except TypeError:
                 extended_exception = exception
 
             raise extended_exception.with_traceback(traceback)
         return return_value
+
+    def __copy__(self):
+        cls = self.__class__
+        copied_task = cls.__new__(cls)
+        copied_task.__dict__.update(self.__dict__)
+        copied_task._private_task_config = _PrivateTaskConfig(
+            init_args=self.private_task_config.init_args, uid=id(copied_task))
+        return copied_task
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        copied_task = cls.__new__(cls)
+        memo[id(self)] = copied_task
+
+        for key, val in self.__dict__.items():
+            setattr(copied_task, key, copy.deepcopy(val, memo))
+
+        copied_task._private_task_config = _PrivateTaskConfig(
+            init_args=self.private_task_config.init_args, uid=id(copied_task))
+        return copied_task
 
     @abstractmethod
     def execute(self, *eopatches, **kwargs):
@@ -84,7 +104,7 @@ class EOTask(ABC):
                              default_feature_type=default_feature_type, allowed_feature_types=allowed_feature_types)
 
 
-@attr.s(eq=False)
+@attr.s(eq=False, frozen=True)
 class _PrivateTaskConfig:
     """ A container for general EOTask parameters required during EOWorkflow and EOExecution
 
@@ -92,40 +112,6 @@ class _PrivateTaskConfig:
     :type init_args: OrderedDict
     :param uuid: An unique hexadecimal identifier string a task gets in EOWorkflow
     :type uuid: str or None
-    :param start_time: Time when task execution started
-    :type start_time: datetime.datetime or None
-    :param end_time: Time when task execution ended
-    :type end_time: datetime.datetime or None
     """
     init_args = attr.ib()
-    uuid = attr.ib(default=None)
-    start_time = attr.ib(default=None)
-    end_time = attr.ib(default=None)
-
-    def __add__(self, other):
-        return _PrivateTaskConfig(init_args=OrderedDict(list(self.init_args.items()) + list(other.init_args.items())))
-
-
-class CompositeTask(EOTask):
-    """Creates a task that is composite of two tasks.
-
-    Note: Instead of directly using this task it might be more convenient to use `'*'` operation between tasks.
-    Example: `composite_task = task1 * task2`
-
-    :param eotask1: Task which will be executed first
-    :type eotask1: EOTask
-    :param eotask2: Task which will be executed on results of first task
-    :type eotask2: EOTask
-    """
-    def __init__(self, eotask1, eotask2):
-
-        warnings.warn("The CompositeTask (also used by EOTasks __mul__ method) has issues and will be removed.",
-                    DeprecationWarning, stacklevel=2)
-
-        self.eotask1 = eotask1
-        self.eotask2 = eotask2
-
-        self.private_task_config = eotask1.private_task_config + eotask2.private_task_config
-
-    def execute(self, *eopatches, **kwargs):
-        return self.eotask2.execute(self.eotask1.execute(*eopatches, **kwargs))
+    uid = attr.ib(default=None)

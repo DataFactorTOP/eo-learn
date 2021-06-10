@@ -22,7 +22,6 @@ file in the root directory of this source tree.
 """
 import collections
 import logging
-import uuid
 import copy
 
 import attr
@@ -57,12 +56,10 @@ class EOWorkflow:
         :param dependencies: A list of dependencies between tasks, specifying the computational graph.
         :type dependencies: list(tuple or Dependency)
         """
-        self.id_gen = _UniqueIdGenerator()
-
-        self.dependencies = self._parse_dependencies(dependencies)
-        self.uuid_dict = self._set_task_uuid(self.dependencies)
-        self.dag = self.create_dag(self.dependencies)
-        self.ordered_dependencies = self._schedule_dependencies(self.dag)
+        dependencies = self._parse_dependencies(dependencies)
+        self._uid_dict = self._make_uid_dict(dependencies)
+        self.dag = self._create_dag(dependencies)
+        self._ordered_dependencies = self._schedule_dependencies(self.dag)
 
     @staticmethod
     def _parse_dependencies(dependencies):
@@ -73,28 +70,28 @@ class EOWorkflow:
         :return: List of dependencies
         :rtype: list(Dependency)
         """
-        return [dep if isinstance(dep, Dependency) else Dependency(*dep) for dep in dependencies]
+        return [copy.copy(dep) if isinstance(dep, Dependency) else Dependency(*dep) for dep in dependencies]
 
-    def _set_task_uuid(self, dependencies):
-        """ Adds universally unique user ids (UUID) to each task of the workflow
+    @staticmethod
+    def _make_uid_dict(dependencies):
+        """ Creates a dictionary linking task IDs and the tasks dependency while checking uniqueness of tasks
 
         :param dependencies: The list of dependencies between tasks defining the computational graph
         :type dependencies: list(Dependency)
-        :return: A dictionary mapping UUID to dependencies
-        :rtype: dict(str: Dependency)
+        :return: A dictionary mapping task IDs to dependencies
+        :rtype: dict(int: Dependency)
         """
-        uuid_dict = {}
+        uid_dict = {}
         for dep in dependencies:
-            task = dep.task
-            if task.private_task_config.uuid in uuid_dict:
-                raise ValueError('EOWorkflow cannot execute the same instance of EOTask multiple times')
+            uid = dep.task.private_task_config.uid
+            if uid in uid_dict:
+                raise ValueError(f'EOWorkflow cannot execute the same instance of EOTask {dep.task.__class__.__name__}'
+                                 ' multiple times')
+            uid_dict[uid] = dep
 
-            task.private_task_config.uuid = self.id_gen.get_next()
-            uuid_dict[task.private_task_config.uuid] = dep
+        return uid_dict
 
-        return uuid_dict
-
-    def create_dag(self, dependencies):
+    def _create_dag(self, dependencies):
         """ Creates a directed graph from dependencies
 
         :param dependencies: A list of Dependency objects
@@ -105,11 +102,11 @@ class EOWorkflow:
         dag = DirectedGraph()
         for dep in dependencies:
             for vertex in dep.inputs:
-                task_uuid = vertex.private_task_config.uuid
-                if task_uuid not in self.uuid_dict:
-                    raise ValueError('Task {}, which is an input of a task {}, is not part of the defined '
-                                     'workflow'.format(vertex.__class__.__name__, dep.name))
-                dag.add_edge(self.uuid_dict[task_uuid], dep)
+                task_uid = vertex.private_task_config.uid
+                if task_uid not in self._uid_dict:
+                    raise ValueError(f'Task {vertex.__class__.__name__}, which is an input of a task {dep.name}, is not'
+                                     ' part of the defined workflow')
+                dag.add_edge(self._uid_dict[task_uid], dep)
             if not dep.inputs:
                 dag.add_vertex(dep)
         return dag
@@ -124,7 +121,7 @@ class EOWorkflow:
         :return: A list of topologically ordered dependecies
         :rtype: list(Dependency)
         """
-        in_degrees = dict(dag.get_indegrees())
+        in_degrees = dag.get_indegrees()
 
         independent_vertices = collections.deque([vertex for vertex in dag if dag.get_indegree(vertex) == 0])
         topological_order = []
@@ -138,7 +135,7 @@ class EOWorkflow:
                     independent_vertices.append(u_vertex)
 
         if len(topological_order) != len(dag):
-            raise CyclicDependencyError('Tasks do not form an acyclic graph')
+            raise CyclicDependencyError('Tasks form a cyclic graph')
 
         return topological_order
 
@@ -151,7 +148,7 @@ class EOWorkflow:
         :return: An immutable mapping containing results of terminal tasks
         :rtype: WorkflowResults
         """
-        out_degs = dict(self.dag.get_outdegrees())
+        out_degs = self.dag.get_outdegrees()
 
         input_args = self.parse_input_args(input_args)
 
@@ -168,11 +165,11 @@ class EOWorkflow:
         input_args = input_args if input_args else {}
         for task, args in input_args.items():
             if not isinstance(task, EOTask):
-                raise ValueError('Invalid input argument {}, should be an instance of EOTask'.format(task))
+                raise ValueError(f'Invalid input argument {task}, should be an instance of EOTask')
 
             if not isinstance(args, (tuple, dict)):
                 raise ValueError('Execution input arguments of each task should be a dictionary or a tuple, for task '
-                                 '{} got arguments of type {}'.format(task.__class__.__name__, type(args)))
+                                 f'{task.__class__.__name__} got arguments of type {type(args)}')
 
         return input_args
 
@@ -189,7 +186,7 @@ class EOWorkflow:
         """
         intermediate_results = {}
 
-        for dep in self.ordered_dependencies:
+        for dep in self._ordered_dependencies:
             result = self._execute_task(dependency=dep,
                                         input_args=input_args,
                                         intermediate_results=intermediate_results)
@@ -216,7 +213,7 @@ class EOWorkflow:
         :rtype: object
         """
         task = dependency.task
-        inputs = tuple(intermediate_results[self.uuid_dict[input_task.private_task_config.uuid]]
+        inputs = tuple(intermediate_results[self._uid_dict[input_task.private_task_config.uid]]
                        for input_task in dependency.inputs)
 
         kw_inputs = input_args.get(task, {})
@@ -242,7 +239,7 @@ class EOWorkflow:
         """
         current_task = dependency.task
         for input_task in dependency.inputs:
-            dep = self.uuid_dict[input_task.private_task_config.uuid]
+            dep = self._uid_dict[input_task.private_task_config.uid]
             out_degrees[dep] -= 1
 
             if out_degrees[dep] == 0:
@@ -257,7 +254,7 @@ class EOWorkflow:
         :rtype: OrderedDict
         """
         task_dict = collections.OrderedDict()
-        for dep in self.ordered_dependencies:
+        for dep in self._ordered_dependencies:
             task_name = dep.name
 
             if task_name in task_dict:
@@ -301,7 +298,7 @@ class EOWorkflow:
         except ImportError:
             raise RuntimeError('Subpackage eo-learn-visualization has to be installed in order to use EOWorkflow '
                                'visualization methods')
-        return EOWorkflowVisualization(self)
+        return EOWorkflowVisualization(self._ordered_dependencies, self._uid_dict)
 
 
 class LinearWorkflow(EOWorkflow):
@@ -320,7 +317,6 @@ class LinearWorkflow(EOWorkflow):
         :type tasks: EOTask or (EOTask, str)
         """
         tasks = [self._parse_task(task) for task in tasks]
-        tasks = self._make_tasks_unique(tasks)
 
         dependencies = [(task, [tasks[idx - 1][0]] if idx > 0 else [], name) for idx, (task, name) in enumerate(tasks)]
         super().__init__(dependencies, **kwargs)
@@ -335,23 +331,6 @@ class LinearWorkflow(EOWorkflow):
             return task
 
         raise ValueError(f'Cannot parse {task}, expected an instance of EOTask or a tuple (EOTask, name)')
-
-    @staticmethod
-    def _make_tasks_unique(tasks):
-        """ If the same instances of tasks are given to LinearWorkflow, this will deep copy them
-        """
-        unique_tasks = []
-        prev_tasks = set()
-
-        for task, name in tasks:
-            if task in prev_tasks:
-                task = copy.deepcopy(task)
-
-            prev_tasks.add(task)
-            unique_tasks.append((task, name))
-
-        return unique_tasks
-
 
 @attr.s(eq=False)  # eq=False preserves the original hash
 class Dependency:
@@ -372,16 +351,16 @@ class Dependency:
         """ This is executed right after init method
         """
         if not isinstance(self.task, EOTask):
-            raise ValueError('Value {} should be an instance of {}'.format(self.task, EOTask.__name__))
+            raise ValueError(f'Value {self.task} should be an instance of {EOTask.__name__}')
         self.task = self.task
 
         if isinstance(self.inputs, EOTask):
             self.inputs = [self.inputs]
         if not isinstance(self.inputs, (list, tuple)):
-            raise ValueError('Value {} should be a list'.format(self.inputs))
+            raise ValueError(f'Value {self.inputs} should be a list')
         for input_task in self.inputs:
             if not isinstance(input_task, EOTask):
-                raise ValueError('Value {} should be an instance of {}'.format(input_task, EOTask.__name__))
+                raise ValueError(f'Value {input_task} should be an instance of {EOTask.__name__}')
 
         if self.name is None:
             self.name = self.task.__class__.__name__
@@ -390,7 +369,7 @@ class Dependency:
         """ Provides custom task name according to given number. E.g. FooTask -> FooTask
         """
         if number:
-            return '{}_{}'.format(self.name, number)
+            return f'{self.name}_{number}'
         return self.name
 
 
@@ -405,11 +384,11 @@ class WorkflowResults(collections.abc.Mapping):
     """
     def __init__(self, results):
         self._result = results
-        self._uuid_dict = {dep.task.private_task_config.uuid: dep for dep in results}
+        self._uid_dict = {dep.task.private_task_config.uid: dep for dep in results}
 
     def __getitem__(self, item):
         if isinstance(item, EOTask):
-            item = self._uuid_dict[item.private_task_config.uuid]
+            item = self._uid_dict[item.private_task_config.uid]
         return self._result[item]
 
     def __len__(self):
@@ -420,7 +399,7 @@ class WorkflowResults(collections.abc.Mapping):
 
     def __contains__(self, item):
         if isinstance(item, EOTask):
-            item = self._uuid_dict.get(item.private_task_config.uuid, item)
+            item = self._uid_dict.get(item.private_task_config.uid, item)
         return item in self._result
 
     def __eq__(self, other):
@@ -444,7 +423,7 @@ class WorkflowResults(collections.abc.Mapping):
     def get(self, key, default=None):
         """ Dictionary get method """
         if isinstance(key, EOTask):
-            key = self._uuid_dict[key.private_task_config.uuid]
+            key = self._uid_dict[key.private_task_config.uid]
         return self._result.get(key, default)
 
     def eopatch(self):
@@ -452,37 +431,12 @@ class WorkflowResults(collections.abc.Mapping):
         return list(self.values())[-1]
 
     def __repr__(self):
-        repr_list = ['{}('.format(self.__class__.__name__)]
+        repr_list = [f'{self.__class__.__name__}(']
 
-        for _, dep in self._uuid_dict.items():
+        for _, dep in self._uid_dict.items():
             result_repr = repr(self._result[dep]).replace('\n', '\n    ')
-            dependency_repr = '{}({}):\n    {}'.format(Dependency.__name__, dep.name, result_repr)
+            dependency_repr = f'{Dependency.__name__}({dep.name}):\n    {result_repr}'
 
             repr_list.append(dependency_repr)
 
         return '\n  '.join(repr_list) + '\n)'
-
-
-class _UniqueIdGenerator:
-    """ Generator of unique IDs, which is used in workflows only
-    """
-
-    MAX_UUIDS = 2 ** 20
-
-    def __init__(self):
-        self.uuids = set()
-
-    def _next(self):
-        if len(self.uuids) + 1 > _UniqueIdGenerator.MAX_UUIDS:
-            raise MemoryError('Limit of max UUIDs reached')
-
-        while True:
-            uid = uuid.uuid4()
-            if uid not in self.uuids:
-                self.uuids.add(uid)
-                return uid
-
-    def get_next(self):
-        """ Generates an ID
-        """
-        return self._next().hex

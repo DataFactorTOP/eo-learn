@@ -401,6 +401,6 @@ class Dependency:
 class WorkflowResults:
     """ An object containing results of an EOWorkflow execution
     """
-    outputs: Dict[str, object] = field(default_factory=dict)
+    outputs: Dict[str, object]
     start_times: Dict[int, object] = field(default_factory=dict)
     end_times: Dict[int, object] = field(default_factory=dict)

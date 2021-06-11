@@ -17,7 +17,10 @@ import concurrent.futures
 import multiprocessing
 import time
 
-from eolearn.core import EOTask, EOWorkflow, Dependency, EOExecutor, WorkflowResults, execute_with_mp_lock, LinearWorkflow
+from eolearn.core import (
+    EOTask, EOWorkflow, Dependency, EOExecutor, WorkflowResults, execute_with_mp_lock, LinearWorkflow
+)
+from eolearn.core.eoworkflow_tasks import OutputTask
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -63,8 +66,12 @@ class TestEOExecutor(unittest.TestCase):
     def setUpClass(cls):
         cls.task = ExampleTask()
         cls.final_task = FooTask()
-        cls.workflow = EOWorkflow([(cls.task, []),
-                                   Dependency(task=cls.final_task, inputs=[cls.task, cls.task])])
+        cls.output_task = OutputTask()
+        cls.workflow = EOWorkflow([
+            (cls.task, []),
+            Dependency(task=cls.final_task, inputs=[cls.task, cls.task]),
+            (cls.output_task, [cls.final_task])
+            ])
 
         cls.execution_args = [
             {cls.task: {'arg1': 1}},
@@ -108,7 +115,7 @@ class TestEOExecutor(unittest.TestCase):
                 log_path = os.path.join(executor.report_folder, log_filenames[0])
                 with open(log_path, 'r') as fp:
                     line_count = len(fp.readlines())
-                    expected_line_count = 2 if filter_logs else 12
+                    expected_line_count = 2 if filter_logs else 14
                     self.assertEqual(line_count, expected_line_count)
 
     def test_execution_stats(self):
@@ -151,7 +158,7 @@ class TestEOExecutor(unittest.TestCase):
                         self.assertEqual(workflow_results, None)
                     else:
                         self.assertTrue(isinstance(workflow_results, WorkflowResults))
-                        self.assertEqual(workflow_results[self.final_task], 42)
+                        self.assertEqual(workflow_results[self.output_task], 42)
                         self.assertTrue(self.task not in workflow_results)
             else:
                 self.assertEqual(results, None)
@@ -178,7 +185,7 @@ class TestEOExecutor(unittest.TestCase):
                     {'workers':3, 'multiprocess':False}]
         for arg in run_args:
             self.assertRaises(KeyboardInterrupt, EOExecutor(workflow, execution_args).run, **arg)
-        
+
 
 class TestExecuteWithMultiprocessingLock(unittest.TestCase):
 

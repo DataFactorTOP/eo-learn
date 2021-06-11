@@ -157,8 +157,6 @@ class EOWorkflow:
         uid_input_args = self._make_uid_input_args(input_args)
 
         outputs = self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs)
-
-        outputs = {dep.task.name: output for dep, output in outputs.items()}
         results = WorkflowResults(
             outputs=outputs
         )
@@ -219,7 +217,7 @@ class EOWorkflow:
                                      out_degrees=out_degs,
                                      intermediate_results=intermediate_results)
 
-        return intermediate_results
+        return {dep.task.name: output for dep, output in intermediate_results.items()}
 
     def _execute_task(self, *, dependency, uid_input_args, intermediate_results):
         """ Executes a task of the workflow

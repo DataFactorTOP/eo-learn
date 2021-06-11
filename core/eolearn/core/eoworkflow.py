@@ -23,6 +23,8 @@ file in the root directory of this source tree.
 import collections
 import logging
 import copy
+from typing import Dict
+from dataclasses import field, dataclass
 
 import attr
 
@@ -154,7 +156,12 @@ class EOWorkflow:
         self.validate_input_args(input_args)
         uid_input_args = self._make_uid_input_args(input_args)
 
-        results = WorkflowResults(self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs))
+        outputs = self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs)
+
+        outputs = {dep.task.name: output for dep, output in outputs.items()}
+        results = WorkflowResults(
+            outputs=outputs
+        )
 
         LOGGER.debug('Workflow finished with %s', repr(results))
         return results
@@ -390,70 +397,10 @@ class Dependency:
         return self.name
 
 
-class WorkflowResults(collections.abc.Mapping):
-    """ The result of a workflow is an (immutable) dictionary mapping [1] from EOTasks to results of the workflow.
-
-    When an EOTask is passed as an index, its UUID, assigned during workflow execution, is used as the key (as opposed
-    to the result of invoking __repr__ on the EO task). This ensures that indexing by task works even after pickling,
-    and makes dealing with checkpoints more convenient.
-
-    [1] https://docs.python.org/3.6/library/collections.abc.html#collections-abstract-base-classes
+@dataclass(frozen=True)
+class WorkflowResults:
+    """ An object containing results of an EOWorkflow execution
     """
-    def __init__(self, results):
-        self._result = results
-        self._uid_dict = {dep.task.private_task_config.uid: dep for dep in results}
-
-    def __getitem__(self, item):
-        if isinstance(item, EOTask):
-            item = self._uid_dict[item.private_task_config.uid]
-        return self._result[item]
-
-    def __len__(self):
-        return len(self._result)
-
-    def __iter__(self):
-        return iter(self._result)
-
-    def __contains__(self, item):
-        if isinstance(item, EOTask):
-            item = self._uid_dict.get(item.private_task_config.uid, item)
-        return item in self._result
-
-    def __eq__(self, other):
-        return self._result == other
-
-    def __ne__(self, other):
-        return self._result != other
-
-    def keys(self):
-        """ Returns dictionary keys """
-        return {dep.task: None for dep in self._result}.keys()
-
-    def values(self):
-        """ Returns dictionary values """
-        return self._result.values()
-
-    def items(self):
-        """ Returns dictionary items """
-        return {dep.task: value for dep, value in self._result.items()}.items()
-
-    def get(self, key, default=None):
-        """ Dictionary get method """
-        if isinstance(key, EOTask):
-            key = self._uid_dict[key.private_task_config.uid]
-        return self._result.get(key, default)
-
-    def eopatch(self):
-        """ Return the EOPatch from the workflow result """
-        return list(self.values())[-1]
-
-    def __repr__(self):
-        repr_list = [f'{self.__class__.__name__}(']
-
-        for _, dep in self._uid_dict.items():
-            result_repr = repr(self._result[dep]).replace('\n', '\n    ')
-            dependency_repr = f'{Dependency.__name__}({dep.name}):\n    {result_repr}'
-
-            repr_list.append(dependency_repr)
-
-        return '\n  '.join(repr_list) + '\n)'
+    outputs: Dict[str, object] = field(default_factory=dict)
+    start_times: Dict[int, object] = field(default_factory=dict)
+    end_times: Dict[int, object] = field(default_factory=dict)

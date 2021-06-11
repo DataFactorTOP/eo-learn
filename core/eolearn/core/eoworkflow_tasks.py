@@ -14,7 +14,7 @@ class OutputTask(EOTask):
         :param features: A collection of features to be kept
         :type features: an object supported by the :class:`FeatureParser<eolearn.core.utilities.FeatureParser>`
         """
-        self._name = name or f'output_{self.private_task_config.uuid}'  # TODO: rename to uid
+        self._name = name or f'output_{self.private_task_config.uid}'
         self.features = features
 
     @property

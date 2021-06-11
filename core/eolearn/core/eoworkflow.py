@@ -173,7 +173,7 @@ class EOWorkflow:
         :param input_args: A dictionary mapping tasks to task execution arguments
         :type input_args: dict
         """
-        input_args = input_args if input_args else {}
+        input_args = input_args or {}
 
         for task, args in input_args.items():
             if not isinstance(task, EOTask):
@@ -192,7 +192,7 @@ class EOWorkflow:
         :return: A dictionary mapping task uids to task execution arguments
         :rtype: dict
         """
-        input_args = input_args if input_args else {}
+        input_args = input_args or {}
         return {task.private_task_config.uid: args for task, args in input_args.items()}
 
     def _execute_tasks(self, *, uid_input_args, out_degs):

@@ -69,7 +69,7 @@ class EOExecutor:
         :type execution_names: list(str) or None
         """
         self.workflow = workflow
-        self._validate_execution_args(execution_args)
+        self.execution_args = self._parse_and_validate_execution_args(execution_args)
         self.execution_args = execution_args
         self.save_logs = save_logs
         self.logs_folder = logs_folder
@@ -83,14 +83,16 @@ class EOExecutor:
         self.execution_stats = None
 
     @staticmethod
-    def _validate_execution_args(execution_args):
-        """ Validates execution arguments provided by user and raises an error if something is wrong
+    def _parse_and_validate_execution_args(execution_args):
+        """ Parses and validates execution arguments provided by user and raises an error if something is wrong
         """
         if not isinstance(execution_args, (list, tuple)):
             raise ValueError("Parameter 'execution_args' should be a list")
 
         for input_args in execution_args:
             EOWorkflow.validate_input_args(input_args)
+
+        return [input_args or {} for input_args in execution_args]
 
     @staticmethod
     def _parse_execution_names(execution_names, execution_args):

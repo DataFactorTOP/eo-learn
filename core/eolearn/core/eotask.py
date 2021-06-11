@@ -118,8 +118,8 @@ class _PrivateTaskConfig:
 
     :param init_args: A dictionary of parameters and values used for EOTask initialization
     :type init_args: OrderedDict
-    :param uuid: An unique hexadecimal identifier string a task gets in EOWorkflow
-    :type uuid: str or None
+    :param uid: The id of a task when it is created
+    :type uid: int
     """
     init_args = attr.ib()
     uid = attr.ib()

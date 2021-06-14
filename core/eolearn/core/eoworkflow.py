@@ -23,8 +23,9 @@ file in the root directory of this source tree.
 import collections
 import logging
 import copy
+import datetime as dt
 from typing import Dict
-from dataclasses import field, dataclass
+from dataclasses import dataclass
 
 import attr
 
@@ -156,10 +157,8 @@ class EOWorkflow:
         self.validate_input_args(input_args)
         uid_input_args = self._make_uid_input_args(input_args)
 
-        outputs = self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs)
-        results = WorkflowResults(
-            outputs=outputs
-        )
+        outputs, stats = self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs)
+        results = WorkflowResults(outputs=outputs, stats=stats)
 
         LOGGER.debug('Workflow finished with %s', repr(results))
         return results
@@ -205,19 +204,21 @@ class EOWorkflow:
         :rtype: dict
         """
         intermediate_results = {}
+        stats_dict = {}
 
         for dep in self._dependencies:
-            result = self._execute_task(dependency=dep,
-                                        uid_input_args=uid_input_args,
-                                        intermediate_results=intermediate_results)
+            result, stats = self._execute_task(dependency=dep,
+                                               uid_input_args=uid_input_args,
+                                               intermediate_results=intermediate_results)
 
             intermediate_results[dep] = result
+            stats_dict[dep.task.private_task_config.uid] = stats
 
             self._relax_dependencies(dependency=dep,
                                      out_degrees=out_degs,
                                      intermediate_results=intermediate_results)
 
-        return {dep.task.name: output for dep, output in intermediate_results.items()}
+        return {dep.task.name: output for dep, output in intermediate_results.items()}, stats_dict
 
     def _execute_task(self, *, dependency, uid_input_args, intermediate_results):
         """ Executes a task of the workflow
@@ -242,7 +243,11 @@ class EOWorkflow:
             kw_inputs = {}
 
         LOGGER.debug("Computing %s(*%s, **%s)", task.__class__.__name__, str(inputs), str(kw_inputs))
-        return task(*inputs, **kw_inputs)
+        start_time = dt.datetime.now()
+        result = task(*inputs, **kw_inputs)
+        end_time = dt.datetime.now()
+
+        return result, TaskStats(start_time=start_time, end_time=end_time)
 
     def _relax_dependencies(self, *, dependency, out_degrees, intermediate_results):
         """ Relaxes dependencies incurred by ``task_id``. After the task with ID ``task_id`` has been successfully
@@ -396,9 +401,17 @@ class Dependency:
 
 
 @dataclass(frozen=True)
+class TaskStats:
+    """ An object containing statistical info about a task execution
+    """
+    start_time: dt.datetime
+    end_time: dt.datetime
+
+
+@dataclass(frozen=True)
 class WorkflowResults:
     """ An object containing results of an EOWorkflow execution
     """
     outputs: Dict[str, object]
-    start_times: Dict[int, object] = field(default_factory=dict)
-    end_times: Dict[int, object] = field(default_factory=dict)
+    stats: Dict[str, TaskStats]
+

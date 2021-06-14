@@ -14,15 +14,14 @@ Copyright (c) 2017-2019 Blaž Sovdat, Nejc Vesel, Jovan Višnjić, Anže Zupanc,
 This source code is licensed under the MIT license found in the LICENSE
 file in the root directory of this source tree.
 """
-
-import sys
-import logging
-import inspect
 import copy
-from collections import OrderedDict
+import inspect
+import logging
+import sys
+import uuid
 from abc import ABC, abstractmethod
-
-import attr
+from typing import Dict
+from dataclasses import dataclass, field
 
 from .utilities import FeatureParser
 
@@ -36,14 +35,14 @@ class EOTask(ABC):
         """Stores initialization parameters and the order to the instance attribute `init_args`."""
         self = super().__new__(cls)
 
-        init_args = OrderedDict()
+        init_args = {}
         for arg, value in zip(inspect.getfullargspec(self.__init__).args[1: len(args) + 1], args):
             init_args[arg] = repr(value)
         for arg in inspect.getfullargspec(self.__init__).args[len(args) + 1:]:
             if arg in kwargs:
                 init_args[arg] = repr(kwargs[arg])
 
-        self._private_task_config = _PrivateTaskConfig(init_args=init_args, uid=id(self))
+        self._private_task_config = _PrivateTaskConfig(init_args=init_args, uid=_get_uid(self))
 
         return self
 
@@ -82,7 +81,7 @@ class EOTask(ABC):
         copied_task = cls.__new__(cls)
         copied_task.__dict__.update(self.__dict__)
         copied_task._private_task_config = _PrivateTaskConfig(
-            init_args=self.private_task_config.init_args, uid=id(copied_task))
+            init_args=self.private_task_config.init_args, uid=_get_uid(copied_task))
         return copied_task
 
     def __deepcopy__(self, memo):
@@ -94,7 +93,7 @@ class EOTask(ABC):
             setattr(copied_task, key, copy.deepcopy(val, memo))
 
         copied_task._private_task_config = _PrivateTaskConfig(
-            init_args=self.private_task_config.init_args, uid=id(copied_task))
+            init_args=self.private_task_config.init_args, uid=_get_uid(copied_task))
         return copied_task
 
     @abstractmethod
@@ -112,14 +111,23 @@ class EOTask(ABC):
                              default_feature_type=default_feature_type, allowed_feature_types=allowed_feature_types)
 
 
-@attr.s(eq=False, frozen=True)
+@dataclass(frozen=True)
 class _PrivateTaskConfig:
-    """ A container for general EOTask parameters required during EOWorkflow and EOExecution
+    """ A container for configuration parameters about an EOTask itself
 
+    :param uid: An ID of a task when it is created
     :param init_args: A dictionary of parameters and values used for EOTask initialization
-    :type init_args: OrderedDict
-    :param uid: The id of a task when it is created
-    :type uid: int
     """
-    init_args = attr.ib()
-    uid = attr.ib()
+    uid: str
+    init_args: Dict[str, object]
+
+
+def _get_uid(task):
+    """ Generates a unique ID of a task
+
+    The ID is composed from task name, a hexadecimal string obtained from the current time and a random hexadecimal
+    string. This ensures
+    """
+    time_uid = uuid.uuid1(node=0).hex[:-12]
+    random_uid = uuid.uuid4().hex[:12]
+    return f'{task.__class__.__name__}-{time_uid}-{random_uid}'

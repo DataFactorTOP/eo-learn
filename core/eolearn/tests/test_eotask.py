@@ -45,6 +45,7 @@ class ExceptionTestingTask(EOTask):
 
         return self.task_arg + ' ' + exec_param
 
+
 class PlusOneTask(EOTask):
     @staticmethod
     def execute(x):
@@ -67,14 +68,15 @@ class SelfRecursiveTask(EOTask):
         self.kwargs = kwargs
 
     def execute(self, _):
-        return self.x
+        return self.arg_x
 
 
 def test_call_equals_execute():
     task = PlusOneTask()
-    assert task(1) == task.execute(1), "t(x) should given the same result as t.execute(x)"
+    assert task(1) == task.execute(1), 't(x) should given the same result as t.execute(x)'
     task = PlusConstSquaredTask(20)
-    assert task(14) == task.execute(14), "t(x) should given the same result as t.execute(x)"
+    assert task(14) == task.execute(14), 't(x) should given the same result as t.execute(x)'
+
 
 def test_task_different_uids():
     uids = set()
@@ -82,25 +84,26 @@ def test_task_different_uids():
         task = PlusOneTask()
         uids.add(task.private_task_config.uid)
 
-    assert len(uids) == 5000, "Different tasks should have different uids."
+    assert len(uids) == 5000, 'Different tasks should have different uids.'
+
 
 def test_task_copy():
     task1 = PlusConstSquaredTask(12)
-    task2 = SelfRecursiveTask([1, 2, 3], 3, "apple", this=12, that=task1)
-    assert task1.private_task_config.uid != copy.copy(task1).private_task_config.uid \
-        , "Copied tasks should have different uids."
-    assert task1.private_task_config.uid != copy.deepcopy(task1).private_task_config.uid \
-        , "Copied tasks should have different uids."
+    task2 = SelfRecursiveTask([1, 2, 3], 3, 'apple', this=12, that=task1)
+    assert task1.private_task_config.uid != copy.copy(task1).private_task_config.uid, \
+        'Copied tasks should have different uids.'
+    assert task1.private_task_config.uid != copy.deepcopy(task1).private_task_config.uid, \
+        'Copied tasks should have different uids.'
 
-    assert id(task2.arg_x) == id(copy.copy(task2).arg_x), "Shallow copies should not recursively copy values."
-    assert id(task2.kwargs["that"]) != id(copy.deepcopy(task2).kwargs["that"]) \
-        , "Deep copies should recursively copy values."
+    assert id(task2.arg_x) == id(copy.copy(task2).arg_x), 'Shallow copies should not recursively copy values.'
+    assert id(task2.kwargs['that']) != id(copy.deepcopy(task2).kwargs['that']), \
+        'Deep copies should recursively copy values.'
     assert all(x == y for x, y in zip(task2.arg_x, copy.deepcopy(task2).arg_x)), \
-        "Recursively copied values should be copied correctly."
+        'Recursively copied values should be copied correctly.'
 
     deepcopied_task = copy.deepcopy(task2)
-    assert deepcopied_task.private_task_config.uid == deepcopied_task.recursive.private_task_config.uid \
-        , "Recursive copies of same task should have equal uids."
+    assert deepcopied_task.private_task_config.uid == deepcopied_task.recursive.private_task_config.uid, \
+        'Recursive copies of same task should have equal uids.'
 
 
 def test_execution_handling():

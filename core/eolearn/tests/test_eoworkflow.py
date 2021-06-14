@@ -137,15 +137,19 @@ def test_resolve_dependencies(edges):
         assert functools.reduce(lambda P, Q: P and Q, [vertex_position[u] < vertex_position[v] for u, v in edges])
 
 
-def test_exceptions():
-    faulty_params = [
-        (None,), (InputTask(), 'a string'), (InputTask(), ('something', InputTask())),
-        ((InputTask(), 'name', 'something else'),), (('task', 'name'),)
-        ]
-
-    for params in faulty_params:
-        with pytest.raises(ValueError):
-            LinearWorkflow(*params)
+@pytest.mark.parametrize(
+    'faulty_parameters',
+    [
+        (None,),
+        (InputTask(), 'a string'),
+        (InputTask(), ('something', InputTask())),
+        (InputTask(), 'name', 'something else'),
+        ('task', 'name')
+    ]
+)
+def test_exceptions(faulty_parameters):
+    with pytest.raises(ValueError):
+        LinearWorkflow(*faulty_parameters)
 
 
 def test_workflows_sharing_tasks():

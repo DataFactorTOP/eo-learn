@@ -21,7 +21,7 @@ import sys
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .utilities import FeatureParser
 

@@ -42,7 +42,7 @@ class EOTask(ABC):
             if arg in kwargs:
                 init_args[arg] = repr(kwargs[arg])
 
-        self._private_task_config = _PrivateTaskConfig(init_args=init_args, uid=_get_uid(self))
+        self._private_task_config = _PrivateTaskConfig(init_args=init_args, uid=_generate_uid(self))
 
         return self
 
@@ -81,7 +81,7 @@ class EOTask(ABC):
         copied_task = cls.__new__(cls)
         copied_task.__dict__.update(self.__dict__)
         copied_task._private_task_config = _PrivateTaskConfig(
-            init_args=self.private_task_config.init_args, uid=_get_uid(copied_task))
+            init_args=self.private_task_config.init_args, uid=_generate_uid(copied_task))
         return copied_task
 
     def __deepcopy__(self, memo):
@@ -93,7 +93,7 @@ class EOTask(ABC):
             setattr(copied_task, key, copy.deepcopy(val, memo))
 
         copied_task._private_task_config = _PrivateTaskConfig(
-            init_args=self.private_task_config.init_args, uid=_get_uid(copied_task))
+            init_args=self.private_task_config.init_args, uid=_generate_uid(copied_task))
         return copied_task
 
     @abstractmethod
@@ -122,7 +122,7 @@ class _PrivateTaskConfig:
     init_args: Dict[str, object]
 
 
-def _get_uid(task):
+def _generate_uid(task):
     """ Generates a unique ID of a task
 
     The ID is composed from task name, a hexadecimal string obtained from the current time and a random hexadecimal

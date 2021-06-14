@@ -157,8 +157,7 @@ class EOWorkflow:
         self.validate_input_args(input_args)
         uid_input_args = self._make_uid_input_args(input_args)
 
-        outputs, stats = self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs)
-        results = WorkflowResults(outputs=outputs, stats=stats)
+        results = self._execute_tasks(uid_input_args=uid_input_args, out_degs=out_degs)
 
         LOGGER.debug('Workflow finished with %s', repr(results))
         return results
@@ -200,10 +199,11 @@ class EOWorkflow:
         :param out_degs: Dictionary mapping vertices (task IDs) to their out-degrees. (The out-degree equals the number
         of tasks that depend on this task.)
         :type out_degs: Dict
-        :return: A dictionary mapping dependencies to task results
-        :rtype: dict
+        :return: An object with results of a workflow
+        :rtype: WorkflowResults
         """
         intermediate_results = {}
+        output_results = {}
         stats_dict = {}
 
         for dep in self._dependencies:
@@ -212,13 +212,16 @@ class EOWorkflow:
                                                intermediate_results=intermediate_results)
 
             intermediate_results[dep] = result
+            if isinstance(dep.task, OutputTask):
+                output_results[dep.task.name] = result
+
             stats_dict[dep.task.private_task_config.uid] = stats
 
             self._relax_dependencies(dependency=dep,
                                      out_degrees=out_degs,
                                      intermediate_results=intermediate_results)
 
-        return {dep.task.name: output for dep, output in intermediate_results.items()}, stats_dict
+        return WorkflowResults(outputs=output_results, stats=stats_dict)
 
     def _execute_task(self, *, dependency, uid_input_args, intermediate_results):
         """ Executes a task of the workflow
@@ -231,7 +234,7 @@ class EOWorkflow:
         tasks that the current task depends on.
         :type intermediate_results: dict
         :return: The result of the task in dependency
-        :rtype: object
+        :rtype: (object, TaskStats)
         """
         task = dependency.task
         inputs = tuple(intermediate_results[self._uid_dict[input_task.private_task_config.uid]]
@@ -268,7 +271,7 @@ class EOWorkflow:
             if input_task is not dependency.task:
                 out_degrees[dep] -= 1
 
-            if out_degrees[dep] == 0 and not isinstance(input_task, OutputTask):
+            if out_degrees[dep] == 0:
                 LOGGER.debug('Removing intermediate result of %s', input_task.__class__.__name__)
                 del intermediate_results[dep]
 

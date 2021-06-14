@@ -115,7 +115,7 @@ class TestEOExecutor(unittest.TestCase):
                 log_path = os.path.join(executor.report_folder, log_filenames[0])
                 with open(log_path, 'r') as fp:
                     line_count = len(fp.readlines())
-                    expected_line_count = 2 if filter_logs else 11
+                    expected_line_count = 2 if filter_logs else 12
                     self.assertEqual(line_count, expected_line_count)
 
     def test_execution_stats(self):

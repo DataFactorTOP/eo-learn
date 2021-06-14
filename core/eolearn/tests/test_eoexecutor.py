@@ -115,7 +115,7 @@ class TestEOExecutor(unittest.TestCase):
                 log_path = os.path.join(executor.report_folder, log_filenames[0])
                 with open(log_path, 'r') as fp:
                     line_count = len(fp.readlines())
-                    expected_line_count = 2 if filter_logs else 14
+                    expected_line_count = 2 if filter_logs else 11
                     self.assertEqual(line_count, expected_line_count)
 
     def test_execution_stats(self):
@@ -158,8 +158,7 @@ class TestEOExecutor(unittest.TestCase):
                         self.assertEqual(workflow_results, None)
                     else:
                         self.assertTrue(isinstance(workflow_results, WorkflowResults))
-                        self.assertEqual(workflow_results[self.output_task], 42)
-                        self.assertTrue(self.task not in workflow_results)
+                        self.assertEqual(workflow_results.outputs[self.output_task.name], 42)
             else:
                 self.assertEqual(results, None)
 

@@ -65,16 +65,16 @@ def test_workflow_arguments():
         }
         executor.shutdown()
         for k in range(2, 100):
-            assert k2future[k].result()[output_task] == k
+            assert k2future[k].result().outputs['output'] == k
 
     result1 = workflow.execute({input_task1: {'val': 15}, input_task2: {'val': 3}})
-    assert result1[output_task] == 5
+    assert result1.outputs['output'] == 5
 
     result2 = workflow.execute({input_task1: {'val': 6}, input_task2: {'val': 3}})
-    assert result2[output_task] == 2
+    assert result2.outputs['output'] == 2
 
     result3 = workflow.execute({input_task1: {'val': 6}, input_task2: {'val': 3}, divide_task: {'z': 1}})
-    assert result3[output_task] == 3
+    assert result3.outputs[output_task.name] == 3
 
 
 def test_linear_workflow():
@@ -86,7 +86,7 @@ def test_linear_workflow():
 
     eow = LinearWorkflow((in_task, in_task_name), inc_task1, inc_task2, pow_task, output_task)
     res = eow.execute({in_task: {'val': 2}, inc_task1: {'d': 2}, pow_task: {'n': 3}})
-    assert res[output_task] == (2 + 2 + 1) ** 3
+    assert res.outputs['output'] == (2 + 2 + 1) ** 3
 
     task_map = eow.get_tasks()
     assert in_task_name in task_map, f"A task with name '{in_task_name}' should be among tasks"
@@ -98,7 +98,7 @@ def test_get_tasks():
     inc_task0 = Inc()
     inc_task1 = Inc()
     inc_task2 = Inc()
-    output_task = OutputTask(name='output')
+    output_task = OutputTask(name='out')
 
     task_names = ['InputTask', 'Inc', 'Inc_1', 'Inc_2', 'OutputTask']
     eow = LinearWorkflow(in_task, inc_task0, inc_task1, inc_task2, output_task)
@@ -114,7 +114,7 @@ def test_get_tasks():
     for _, task in enumerate(returned_tasks.values()):
         manual_res = [task.execute(*manual_res, **arguments_dict.get(task, {}))]
 
-    assert workflow_res[output_task] == manual_res[0], 'Manually running returned tasks produces different results.'
+    assert workflow_res.outputs['out'] == manual_res[0], 'Manually running returned tasks produces different results.'
 
 
 @given(
@@ -153,10 +153,10 @@ def test_workflows_sharing_tasks():
     in_task = InputTask()
     task1 = Inc()
     task2 = Inc()
-    out_task = OutputTask(name='output')
+    out_task = OutputTask(name='out')
     input_args = {in_task: {'val': 2}, task2: {'d': 2}}
 
-    original_workflow = EOWorkflow([(in_task, []), (task1, in_task), (task2, task1), (out_task, task2)])
-    task_reuse_workflow = EOWorkflow([(in_task, []), (task1, in_task), (task2, task1), (out_task, task2)])
+    original = EOWorkflow([(in_task, []), (task1, in_task), (task2, task1), (out_task, task2)])
+    task_reuse = EOWorkflow([(in_task, []), (task1, in_task), (task2, task1), (out_task, task2)])
 
-    assert original_workflow.execute(input_args)[out_task] == task_reuse_workflow.execute(input_args)[out_task]
+    assert original.execute(input_args).outputs['out'] == task_reuse.execute(input_args).outputs['out']

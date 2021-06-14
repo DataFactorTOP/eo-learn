@@ -14,7 +14,7 @@ EOPATCH_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'exampl
 class DummyTask(EOTask):
 
     def execute(self, *eopatches):
-        return eopatches
+        return eopatches[0]
 
 
 @pytest.fixture(name='eopatch')
@@ -48,5 +48,5 @@ def test_output_task_in_workflow(eopatch):
 
     results = workflow.execute()
 
-    assert len(results) == 1
-    assert results[output] == eopatch
+    assert len(results.outputs) == 1
+    assert results.outputs['result-name'] == eopatch

@@ -8,7 +8,7 @@ This source code is licensed under the MIT license found in the LICENSE
 file in the root directory of this source tree.
 """
 
-import unittest
+import pytest
 import logging
 import copy
 
@@ -46,78 +46,79 @@ class ExceptionTestingTask(EOTask):
         return self.task_arg + ' ' + exec_param
 
 
-class TestEOTask(unittest.TestCase):
-    class PlusOneTask(EOTask):
-
-        @staticmethod
-        def execute(x):
-            return x + 1
-
-    class PlusConstSquaredTask(EOTask):
-        def __init__(self, const):
-            self.const = const
-
-        def execute(self, x):
-            return (x + self.const)**2
-
-    class SelfRecursiveTask(EOTask):
-        def __init__(self, x, *args, **kwargs):
-            self.recursive = self
-            self.arg_x = x
-            self.args = args
-            self.kwargs = kwargs
-
-        def execute(self, _):
-            return self.x
-
-    def test_call_equals_execute(self):
-        task = self.PlusOneTask()
-        self.assertEqual(task(1), task.execute(1), msg="t(x) should given the same result as t.execute(x)")
-        task = self.PlusConstSquaredTask(20)
-        self.assertEqual(task(14), task.execute(14), msg="t(x) should given the same result as t.execute(x)")
-
-    def test_task_uids(self):
-        task1 = self.PlusOneTask()
-        task2 = self.PlusOneTask()
-        self.assertNotEqual(task1.private_task_config.uid, task2.private_task_config.uid,
-                            msg="Different tasks should have different uids.")
-
-    def test_task_copy(self):
-        task1 = self.PlusConstSquaredTask(12)
-        task2 = self.SelfRecursiveTask([1, 2, 3], 3, "apple", this=12, that=task1)
-        self.assertNotEqual(task1.private_task_config.uid, copy.copy(task1).private_task_config.uid,
-                            msg="Copied tasks should have different uids.")
-        self.assertNotEqual(task1.private_task_config.uid, copy.deepcopy(task1).private_task_config.uid,
-                            msg="Copied tasks should have different uids.")
-        self.assertEqual(task2.arg_x, copy.copy(task2).arg_x, msg="Shallow copies should not recursively copy values.")
-        self.assertNotEqual(task2.kwargs["that"].private_task_config.uid,
-                            copy.deepcopy(task2).kwargs["that"].private_task_config.uid,
-                            msg="Deep copies should recursively copy values.")
-        self.assertTrue(all(x == y for x, y in zip(task2.arg_x, copy.deepcopy(task2).arg_x)),
-                        msg="Recursively copied values should be copied correctly.")
-        deepcopied_task = copy.deepcopy(task2)
-        self.assertEqual(deepcopied_task.private_task_config.uid, deepcopied_task.recursive.private_task_config.uid,
-                         msg="Recursive copies of same task should have equal uids.")
+class PlusOneTask(EOTask):
+    @staticmethod
+    def execute(x):
+        return x + 1
 
 
-class TestExecutionHandling(unittest.TestCase):
+class PlusConstSquaredTask(EOTask):
+    def __init__(self, const):
+        self.const = const
 
-    def test_execution_handling(self):
-        task = ExceptionTestingTask('test_exception')
-        self.assertRaises(TwoParamException, task, 'test')
-
-        task = ExceptionTestingTask('success')
-        self.assertEqual(task('test'), 'success test')
-
-        for parameter, exception_type in [('test_exception_fail', TypeError), ('value_error', ValueError)]:
-            task = ExceptionTestingTask(parameter)
-            self.assertRaises(exception_type, task, 'test')
-            try:
-                task('test')
-            except exception_type as exception:
-                message = str(exception)
-                self.assertTrue(message.startswith('During execution of task ExceptionTestingTask: '))
+    def execute(self, x):
+        return (x + self.const)**2
 
 
-if __name__ == '__main__':
-    unittest.main()
+class SelfRecursiveTask(EOTask):
+    def __init__(self, x, *args, **kwargs):
+        self.recursive = self
+        self.arg_x = x
+        self.args = args
+        self.kwargs = kwargs
+
+    def execute(self, _):
+        return self.arg_x
+
+
+def test_call_equals_execute():
+    task = PlusOneTask()
+    assert task(1) == task.execute(1), 't(x) should given the same result as t.execute(x)'
+    task = PlusConstSquaredTask(20)
+    assert task(14) == task.execute(14), 't(x) should given the same result as t.execute(x)'
+
+
+def test_task_different_uids():
+    uids = set()
+    for _ in range(5000):
+        task = PlusOneTask()
+        uids.add(task.private_task_config.uid)
+
+    assert len(uids) == 5000, 'Different tasks should have different uids.'
+
+
+def test_task_copy():
+    task1 = PlusConstSquaredTask(12)
+    task2 = SelfRecursiveTask([1, 2, 3], 3, 'apple', this=12, that=task1)
+    assert task1.private_task_config.uid != copy.copy(task1).private_task_config.uid, \
+        'Copied tasks should have different uids.'
+    assert task1.private_task_config.uid != copy.deepcopy(task1).private_task_config.uid, \
+        'Copied tasks should have different uids.'
+
+    assert id(task2.arg_x) == id(copy.copy(task2).arg_x), 'Shallow copies should not recursively copy values.'
+    assert id(task2.kwargs['that']) != id(copy.deepcopy(task2).kwargs['that']), \
+        'Deep copies should recursively copy values.'
+    assert all(x == y for x, y in zip(task2.arg_x, copy.deepcopy(task2).arg_x)), \
+        'Recursively copied values should be copied correctly.'
+
+    deepcopied_task = copy.deepcopy(task2)
+    assert deepcopied_task.private_task_config.uid == deepcopied_task.recursive.private_task_config.uid, \
+        'Recursive copies of same task should have equal uids.'
+
+
+def test_execution_handling():
+    task = ExceptionTestingTask('test_exception')
+    with pytest.raises(TwoParamException):
+        _ = task('test')
+
+    task = ExceptionTestingTask('success')
+    assert task('test') == 'success test'
+
+    for parameter, exception_type in [('test_exception_fail', TypeError), ('value_error', ValueError)]:
+        task = ExceptionTestingTask(parameter)
+        with pytest.raises(exception_type):
+            _ = task('test')
+        try:
+            task('test')
+        except exception_type as exception:
+            assert str(exception).startswith('During execution of task ExceptionTestingTask: ')

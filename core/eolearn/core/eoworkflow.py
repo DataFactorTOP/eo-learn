@@ -69,7 +69,7 @@ class EOWorkflow:
     def _parse_dependencies(dependencies):
         """ Parses dependencies into correct form
 
-        :param dependencies: Lis of inputs that define of dependencies
+        :param dependencies: List of inputs that define of dependencies
         :type dependencies: list(tuple or Dependency)
         :return: List of dependencies
         :rtype: list(Dependency)
@@ -122,7 +122,7 @@ class EOWorkflow:
 
         :param dag: A directed acyclic graph representing dependencies between tasks.
         :type dag: DirectedGraph
-        :return: A list of topologically ordered dependecies
+        :return: A list of topologically ordered dependencies
         :rtype: list(Dependency)
         """
         in_degrees = dag.get_indegrees()

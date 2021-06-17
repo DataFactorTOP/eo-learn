@@ -1,14 +1,7 @@
 """
 Test for module eoworkflow_tasks.py
 """
-import os
-
-import pytest
-
-from eolearn.core import EOPatch, EOTask, EOWorkflow, FeatureType, LoadTask, OutputTask
-
-
-EOPATCH_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'example_data', 'TestEOPatch')
+from eolearn.core import EOTask, EOWorkflow, FeatureType, LoadTask, OutputTask
 
 
 class DummyTask(EOTask):
@@ -17,27 +10,22 @@ class DummyTask(EOTask):
         return eopatches[0]
 
 
-@pytest.fixture(name='eopatch')
-def eopatch_fixture():
-    return EOPatch.load(EOPATCH_PATH)
-
-
-def test_output_task(eopatch):
+def test_output_task(test_eopatch):
     """ Tests basic functionalities of OutputTask
     """
     task = OutputTask(name='my-task', features=[FeatureType.BBOX, (FeatureType.DATA, 'NDVI')])
 
     assert task.name == 'my-task'
 
-    new_eopatch = task.execute(eopatch)
-    assert id(new_eopatch) != id(eopatch)
+    new_eopatch = task.execute(test_eopatch)
+    assert id(new_eopatch) != id(test_eopatch)
 
     assert len(new_eopatch.get_feature_list()) == 2
-    assert new_eopatch.bbox == eopatch.bbox
+    assert new_eopatch.bbox == test_eopatch.bbox
 
 
-def test_output_task_in_workflow(eopatch):
-    load = LoadTask(EOPATCH_PATH)
+def test_output_task_in_workflow(test_eopatch_path, test_eopatch):
+    load = LoadTask(test_eopatch_path)
     output = OutputTask(name='result-name')
 
     workflow = EOWorkflow([
@@ -49,4 +37,4 @@ def test_output_task_in_workflow(eopatch):
     results = workflow.execute()
 
     assert len(results.outputs) == 1
-    assert results.outputs['result-name'] == eopatch
+    assert results.outputs['result-name'] == test_eopatch

@@ -8,7 +8,6 @@ This source code is licensed under the MIT license found in the LICENSE
 file in the root directory of this source tree.
 """
 
-import logging
 import functools
 import concurrent.futures
 
@@ -19,9 +18,6 @@ from eolearn.core import EOTask, EOWorkflow, Dependency, LinearWorkflow
 from eolearn.core.eoworkflow import CyclicDependencyError
 from eolearn.core.eoworkflow_tasks import OutputTask
 from eolearn.core.graph import DirectedGraph
-
-
-logging.basicConfig(level=logging.INFO)
 
 
 class InputTask(EOTask):

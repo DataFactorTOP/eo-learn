@@ -13,7 +13,6 @@ Copyright (c) 2017-2019 Blaž Sovdat, Nejc Vesel, Jovan Višnjić, Anže Zupanc,
 This source code is licensed under the MIT license found in the LICENSE
 file in the root directory of this source tree.
 """
-
 import os
 import logging
 import threading
@@ -22,6 +21,7 @@ import concurrent.futures
 import datetime as dt
 import multiprocessing
 import warnings
+from enum import Enum
 
 from tqdm.auto import tqdm
 
@@ -35,6 +35,15 @@ try:
     MULTIPROCESSING_LOCK = multiprocessing.Manager().Lock()
 except BaseException:
     MULTIPROCESSING_LOCK = None
+
+
+class _ProcessingType(Enum):
+    """ Type of EOExecutor processing
+    """
+    SINGLE_PROCESS = 'single process'
+    MULTIPROCESSING = 'multiprocessing'
+    MULTITHREADING = 'multithreading'
+    RAY = 'ray'
 
 
 class EOExecutor:
@@ -72,7 +81,7 @@ class EOExecutor:
         self.execution_args = self._parse_and_validate_execution_args(execution_args)
         self.execution_args = execution_args
         self.save_logs = save_logs
-        self.logs_folder = logs_folder
+        self.logs_folder = os.path.abspath(logs_folder)
         self.logs_filter = logs_filter
         self.execution_names = self._parse_execution_names(execution_names, self.execution_args)
 
@@ -132,37 +141,48 @@ class EOExecutor:
         if self.save_logs and not os.path.isdir(self.report_folder):
             os.mkdir(self.report_folder)
 
-        execution_num = len(self.execution_args)
         log_paths = self._get_log_paths()
 
         filter_logs_by_thread = not multiprocess and workers > 1
         processing_args = [(self.workflow, init_args, log_path, return_results, filter_logs_by_thread)
                            for init_args, log_path in zip(self.execution_args, log_paths)]
+        processing_type = self._get_processing_type(workers, multiprocess)
 
-        if workers == 1:
-            processing_type = 'single process'
-            self.execution_stats = list(tqdm(map(self._execute_workflow, processing_args), total=len(processing_args)))
-        else:
-            if multiprocess:
-                pool_executor_class = concurrent.futures.ProcessPoolExecutor
-                processing_type = 'multiprocessing'
-            else:
-                pool_executor_class = concurrent.futures.ThreadPoolExecutor
-                processing_type = 'multithreading'
-
-            with pool_executor_class(max_workers=workers) as executor:
-                self.execution_stats = list(tqdm(executor.map(self._execute_workflow, processing_args),
-                                                 total=len(processing_args)))
+        self.execution_stats = self._run_execution(processing_args, workers, processing_type)
 
         self.general_stats = self._prepare_general_stats(workers, processing_type)
 
-        self.execution_logs = [None] * execution_num
+        self.execution_logs = [None] * len(self.execution_args)
         if self.save_logs:
             for idx, log_path in enumerate(log_paths):
                 with open(log_path) as fin:
                     self.execution_logs[idx] = fin.read()
 
         return [stats.get(self.RESULTS) for stats in self.execution_stats] if return_results else None
+
+    @staticmethod
+    def _get_processing_type(workers, multiprocess):
+        """ Decides processing type according to parameters
+        """
+        if workers == 1:
+            return _ProcessingType.SINGLE_PROCESS
+        if multiprocess:
+            return _ProcessingType.MULTIPROCESSING
+        return _ProcessingType.MULTITHREADING
+
+    def _run_execution(self, processing_args, workers, processing_type):
+        """ Runs the execution an each item of processing_args list
+        """
+        if processing_type is _ProcessingType.SINGLE_PROCESS:
+            return list(tqdm(map(self._execute_workflow, processing_args), total=len(processing_args)))
+
+        pool_executor_class = {
+            _ProcessingType.MULTIPROCESSING: concurrent.futures.ProcessPoolExecutor,
+            _ProcessingType.MULTITHREADING: concurrent.futures.ThreadPoolExecutor
+        }[processing_type]
+
+        with pool_executor_class(max_workers=workers) as executor:
+            return list(tqdm(executor.map(self._execute_workflow, processing_args), total=len(processing_args)))
 
     def _try_add_logging(self, log_path, filter_logs_by_thread):
         """ Adds a handler to a logger and returns them both. In case this fails it shows a warning.
@@ -239,7 +259,7 @@ class EOExecutor:
             self.STATS_END_TIME: dt.datetime.now(),
             'finished': len(self.execution_stats) - failed_count,
             'failed': failed_count,
-            'processing_type': processing_type,
+            'processing_type': processing_type.value,
             'workers': workers
         }
 

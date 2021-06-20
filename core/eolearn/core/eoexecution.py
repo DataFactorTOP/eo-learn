@@ -79,7 +79,6 @@ class EOExecutor:
         """
         self.workflow = workflow
         self.execution_args = self._parse_and_validate_execution_args(execution_args)
-        self.execution_args = execution_args
         self.save_logs = save_logs
         self.logs_folder = os.path.abspath(logs_folder)
         self.logs_filter = logs_filter

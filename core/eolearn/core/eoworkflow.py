@@ -417,4 +417,3 @@ class WorkflowResults:
     """
     outputs: Dict[str, object]
     stats: Dict[str, TaskStats]
-

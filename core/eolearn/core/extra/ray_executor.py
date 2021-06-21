@@ -28,12 +28,20 @@ class RayExecutor(EOExecutor):
     def _get_processing_type(*args, **kwargs):
         return _ProcessingType.RAY
 
-    def _run_execution(self, processing_args, *args, **kwargs):
+    @staticmethod
+    def _run_execution(processing_args, *args, **kwargs):
         """ Runs ray execution
         """
-        futures = [RayExecutor._ray_execute_workflow.remote(self, workflow_args) for workflow_args in processing_args]
-        return [ray.get(future) for future in tqdm(futures)]
+        workflow_executor = ray.remote(RayExecutor._execute_workflow)
+        futures = [workflow_executor.remote(workflow_args) for workflow_args in processing_args]
 
-    @ray.remote
-    def _ray_execute_workflow(self, workflow_args):
-        return self._execute_workflow(workflow_args)
+        # Using tqdm directly on futures causes memory problems and is not accurate
+        def progress_bar_iterator(futures):
+            while futures:
+                done, futures = ray.wait(futures, num_returns=1)
+                yield
+
+        for _ in tqdm(progress_bar_iterator(futures), total=len(futures)):
+            pass
+
+        return ray.get(futures)

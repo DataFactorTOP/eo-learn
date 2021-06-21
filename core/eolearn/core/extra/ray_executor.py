@@ -35,13 +35,14 @@ class RayExecutor(EOExecutor):
         workflow_executor = ray.remote(RayExecutor._execute_workflow)
         futures = [workflow_executor.remote(workflow_args) for workflow_args in processing_args]
 
-        # Using tqdm directly on futures causes memory problems and is not accurate
-        def progress_bar_iterator(futures):
-            while futures:
-                done, futures = ray.wait(futures, num_returns=1)
-                yield
-
-        for _ in tqdm(progress_bar_iterator(futures), total=len(futures)):
+        for _ in tqdm(_progress_bar_iterator(futures), total=len(futures)):
             pass
 
         return ray.get(futures)
+
+
+def _progress_bar_iterator(futures):
+    # Using tqdm directly on futures causes memory problems and is not accurate
+    while futures:
+        done, futures = ray.wait(futures, num_returns=1)
+        yield

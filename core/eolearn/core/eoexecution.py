@@ -37,13 +37,6 @@ except BaseException:
     MULTIPROCESSING_LOCK = None
 
 
-_REPORT_FILENAME = 'report.html'
-_STATS_START_TIME = 'start_time'
-_STATS_END_TIME = 'end_time'
-_STATS_ERROR = 'error'
-_RESULTS = 'results'
-
-
 class _ProcessingType(Enum):
     """ Type of EOExecutor processing
     """
@@ -57,6 +50,12 @@ class EOExecutor:
     """ Simultaneously executes a workflow with different input arguments. In the process it monitors execution and
     handles errors. It can also save logs and create a html report about each execution.
     """
+
+    REPORT_FILENAME = 'report.html'
+    STATS_START_TIME = 'start_time'
+    STATS_END_TIME = 'end_time'
+    STATS_ERROR = 'error'
+    RESULTS = 'results'
 
     def __init__(self, workflow, execution_args, *, save_logs=False, logs_folder='.', logs_filter=None,
                  execution_names=None):
@@ -158,7 +157,7 @@ class EOExecutor:
                 with open(log_path) as fin:
                     self.execution_logs[idx] = fin.read()
 
-        return [stats.get(_RESULTS) for stats in self.execution_stats] if return_results else None
+        return [stats.get(self.RESULTS) for stats in self.execution_stats] if return_results else None
 
     @staticmethod
     def _get_processing_type(workers, multiprocess):
@@ -184,15 +183,15 @@ class EOExecutor:
         with pool_executor_class(max_workers=workers) as executor:
             return list(tqdm(executor.map(self._execute_workflow, processing_args), total=len(processing_args)))
 
-    @staticmethod
-    def _try_add_logging(log_path, filter_logs_by_thread, logs_filter):
+    @classmethod
+    def _try_add_logging(cls, log_path, filter_logs_by_thread, logs_filter):
         """ Adds a handler to a logger and returns them both. In case this fails it shows a warning.
         """
         if log_path:
             try:
                 logger = logging.getLogger()
                 logger.setLevel(logging.DEBUG)
-                handler = EOExecutor._get_log_handler(log_path, filter_logs_by_thread, logs_filter)
+                handler = cls._get_log_handler(log_path, filter_logs_by_thread, logs_filter)
                 logger.addHandler(handler)
                 return logger, handler
             except BaseException as exception:
@@ -201,39 +200,39 @@ class EOExecutor:
 
         return None, None
 
-    @staticmethod
-    def _try_remove_logging(log_path, logger, handler, stats):
+    @classmethod
+    def _try_remove_logging(cls, log_path, logger, handler, stats):
         """ Removes a handler from a logger in case that handler exists.
         """
         if log_path:
             try:
-                message = 'EOWorkflow execution {}'.format('failed' if _STATS_ERROR in stats else 'finished')
+                message = 'EOWorkflow execution {}'.format('failed' if cls.STATS_ERROR in stats else 'finished')
                 logger.debug(message)
                 handler.close()
                 logger.removeHandler(handler)
             except BaseException:
                 pass
 
-    @staticmethod
-    def _execute_workflow(process_args):
+    @classmethod
+    def _execute_workflow(cls, process_args):
         """ Handles a single execution of a workflow
         """
         workflow, input_args, log_path, return_results, filter_logs_by_thread, logs_filter = process_args
-        logger, handler = EOExecutor._try_add_logging(log_path, filter_logs_by_thread, logs_filter)
-        stats = {_STATS_START_TIME: dt.datetime.now()}
+        logger, handler = cls._try_add_logging(log_path, filter_logs_by_thread, logs_filter)
+        stats = {cls.STATS_START_TIME: dt.datetime.now()}
         try:
             results = workflow.execute(input_args)
 
             if return_results:
-                stats[_RESULTS] = results
+                stats[cls.RESULTS] = results
 
         except KeyboardInterrupt as exception:
             raise KeyboardInterrupt from exception
         except BaseException:
-            stats[_STATS_ERROR] = traceback.format_exc()
-        stats[_STATS_END_TIME] = dt.datetime.now()
+            stats[cls.STATS_ERROR] = traceback.format_exc()
+        stats[cls.STATS_END_TIME] = dt.datetime.now()
 
-        EOExecutor._try_remove_logging(log_path, logger, handler, stats)
+        cls._try_remove_logging(log_path, logger, handler, stats)
 
         return stats
 
@@ -256,10 +255,10 @@ class EOExecutor:
     def _prepare_general_stats(self, workers, processing_type):
         """ Prepares a dictionary with a general statistics about executions
         """
-        failed_count = sum(_STATS_ERROR in stats for stats in self.execution_stats)
+        failed_count = sum(self.STATS_ERROR in stats for stats in self.execution_stats)
         return {
-            _STATS_START_TIME: self.start_time,
-            _STATS_END_TIME: dt.datetime.now(),
+            self.STATS_START_TIME: self.start_time,
+            self.STATS_END_TIME: dt.datetime.now(),
             'finished': len(self.execution_stats) - failed_count,
             'failed': failed_count,
             'processing_type': processing_type.value,
@@ -288,7 +287,7 @@ class EOExecutor:
         :return: List of successful execution IDs
         :rtype: list(int)
         """
-        return [idx for idx, stats in enumerate(self.execution_stats) if _STATS_ERROR not in stats]
+        return [idx for idx, stats in enumerate(self.execution_stats) if self.STATS_ERROR not in stats]
 
     def get_failed_executions(self):
         """ Returns a list of IDs of failed executions. The IDs are integers from interval
@@ -297,7 +296,7 @@ class EOExecutor:
         :return: List of failed execution IDs
         :rtype: list(int)
         """
-        return [idx for idx, stats in enumerate(self.execution_stats) if _STATS_ERROR in stats]
+        return [idx for idx, stats in enumerate(self.execution_stats) if self.STATS_ERROR in stats]
 
     def get_report_filename(self):
         """ Returns the filename and file path of the report
@@ -305,7 +304,7 @@ class EOExecutor:
         :return: Report filename
         :rtype: str
         """
-        return os.path.join(self.report_folder, _REPORT_FILENAME)
+        return os.path.join(self.report_folder, self.REPORT_FILENAME)
 
     def make_report(self):
         """ Makes a html report and saves it into the same folder where logs are stored.

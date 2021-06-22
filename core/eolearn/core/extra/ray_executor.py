@@ -28,17 +28,22 @@ class RayExecutor(EOExecutor):
     def _get_processing_type(*args, **kwargs):
         return _ProcessingType.RAY
 
-    @staticmethod
-    def _run_execution(processing_args, *args, **kwargs):
+    @classmethod
+    def _run_execution(cls, processing_args, *args, **kwargs):
         """ Runs ray execution
         """
-        workflow_executor = ray.remote(RayExecutor._execute_workflow)
+        workflow_executor = _ray_workflow_executor
         futures = [workflow_executor.remote(workflow_args) for workflow_args in processing_args]
 
         for _ in tqdm(_progress_bar_iterator(futures), total=len(futures)):
             pass
 
         return ray.get(futures)
+
+
+@ray.remote
+def _ray_workflow_executor(workflow_args):
+    return RayExecutor._execute_workflow(workflow_args)
 
 
 def _progress_bar_iterator(futures):

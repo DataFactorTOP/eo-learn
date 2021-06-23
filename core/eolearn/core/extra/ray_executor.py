@@ -1,5 +1,7 @@
 """
-Module containing `ray` integrations
+Module containing integrations with Ray framework
+
+In order to use this module you have to install `ray` Python package.
 """
 try:
     import ray
@@ -11,9 +13,12 @@ from ..eoexecution import EOExecutor, _ProcessingType
 
 
 class RayExecutor(EOExecutor):
-
+    """ A special type of `EOExecutor` that works with Ray framework
+    """
     def run(self, return_results=False):
-        """ Runs the executor using the Ray Cluster.
+        """ Runs the executor using a Ray cluster
+
+        Before calling this method make sure to initialize a Ray cluster using `ray.init`.
 
         :param return_results: If `True` this method will return a list of all results of the execution. Note that
             this might exceed the available memory. By default this parameter is set to `False`.
@@ -21,11 +26,15 @@ class RayExecutor(EOExecutor):
         :return: If `return_results` is set to `True` it will return a list of results, otherwise it will return `None`
         :rtype: None or list(eolearn.core.WorkflowResults)
         """
-        # TODO: perhaps try initializing ray with a given number of workers?
+        if not ray.is_initialized():
+            raise RuntimeError('Please initialize a Ray cluster before calling this method')
+
         return super().run(workers=None, multiprocess=True, return_results=return_results)
 
     @staticmethod
     def _get_processing_type(*args, **kwargs):
+        """ Provides a type of processing for later references
+        """
         return _ProcessingType.RAY
 
     @classmethod
@@ -47,7 +56,10 @@ def _ray_workflow_executor(workflow_args):
 
 
 def _progress_bar_iterator(futures):
-    # Using tqdm directly on futures causes memory problems and is not accurate
+    """ A utility to help tracking finished ray processes
+
+    Note that using directly tqdm(futures) would cause memory problems and is not accurate
+    """
     while futures:
         done, futures = ray.wait(futures, num_returns=1)
         yield

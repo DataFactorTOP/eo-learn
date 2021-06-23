@@ -31,10 +31,7 @@ from .utilities import LogFileFilter
 
 LOGGER = logging.getLogger(__name__)
 
-try:
-    MULTIPROCESSING_LOCK = multiprocessing.Manager().Lock()
-except BaseException:
-    MULTIPROCESSING_LOCK = None
+MULTIPROCESSING_LOCK = None
 
 
 class _ProcessingType(Enum):
@@ -175,13 +172,19 @@ class EOExecutor:
         if processing_type is _ProcessingType.SINGLE_PROCESS:
             return list(tqdm(map(self._execute_workflow, processing_args), total=len(processing_args)))
 
-        pool_executor_class = {
-            _ProcessingType.MULTIPROCESSING: concurrent.futures.ProcessPoolExecutor,
-            _ProcessingType.MULTITHREADING: concurrent.futures.ThreadPoolExecutor
-        }[processing_type]
+        if processing_type is _ProcessingType.MULTITHREADING:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                return list(tqdm(executor.map(self._execute_workflow, processing_args), total=len(processing_args)))
 
-        with pool_executor_class(max_workers=workers) as executor:
-            return list(tqdm(executor.map(self._execute_workflow, processing_args), total=len(processing_args)))
+        global MULTIPROCESSING_LOCK
+        try:
+            MULTIPROCESSING_LOCK = multiprocessing.Manager().Lock()
+            with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+                result = list(tqdm(executor.map(self._execute_workflow, processing_args), total=len(processing_args)))
+        finally:
+            MULTIPROCESSING_LOCK = None
+
+        return result
 
     @classmethod
     def _try_add_logging(cls, log_path, filter_logs_by_thread, logs_filter):
